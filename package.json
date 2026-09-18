@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-trellis-workflow",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Trellis workflow enforcement for the DeepSeek Harness: injects the per-turn workflow state and the trellis-start entry gate that dsh's missing session-start and user-prompt hooks would otherwise provide.",
   "keywords": [
     "dsh",

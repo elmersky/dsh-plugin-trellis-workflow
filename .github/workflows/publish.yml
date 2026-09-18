@@ -39,6 +39,12 @@ jobs:
 
       - run: npm test
 
-      # No NODE_AUTH_TOKEN: the OIDC exchange authenticates the run and npm
-      # attaches provenance automatically.
-      - run: npm publish --provenance --access public
+      # No NODE_AUTH_TOKEN is needed: the OIDC exchange authenticates the run
+      # and npm attaches provenance automatically.
+      #
+      # `--loglevel verbose` is deliberate. When the OIDC token exchange is
+      # rejected, npm logs the registry's explanation at verbose level only and
+      # then falls back to the placeholder token, so the surfaced error (a 404
+      # on PUT) does not name the real cause. Keep this on until the trusted
+      # publisher is confirmed working.
+      - run: npm publish --provenance --access public --loglevel verbose

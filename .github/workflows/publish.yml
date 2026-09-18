@@ -1,0 +1,42 @@
+# Publish to npm via Trusted Publishing (OIDC) -- no npm token is stored or
+# passed anywhere. Requires, on npmjs.com, a Trusted Publisher configured for
+# this exact repository and workflow file:
+#
+#   Provider            GitHub Actions
+#   Organization/user   elmersky
+#   Repository          dsh-plugin-trellis-workflow
+#   Workflow filename   publish.yml
+#   Environment         (leave empty unless you add one below)
+#
+# The package must already exist on npm before the publisher can be
+# configured, so 0.1.0 is published manually; every release from 0.1.1 on
+# goes through this workflow.
+name: publish
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write # required for OIDC trusted publishing
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+
+      # Trusted Publishing needs npm >= 11.5.1; the bundled CLI may be older.
+      - run: npm install -g npm@latest
+
+      - run: npm test
+
+      # No NODE_AUTH_TOKEN: the OIDC exchange authenticates the run and npm
+      # attaches provenance automatically.
+      - run: npm publish --provenance --access public

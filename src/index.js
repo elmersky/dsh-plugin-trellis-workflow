@@ -130,14 +130,6 @@ export function apply(ctx, config) {
   if (settings.enabled === false) return
   const contextOrder = typeof settings.contextOrder === 'number' ? settings.contextOrder : 900
 
-  const systemPrompt = ctx.get('systemPrompt')
-  if (systemPrompt === undefined) {
-    if (typeof ctx.logger?.warn === 'function') {
-      ctx.logger.warn('trellis-workflow: systemPrompt service unavailable; no workflow state registered')
-    }
-    return
-  }
-
   const states = new Map()
   const reading = new Set()
 
@@ -152,7 +144,9 @@ export function apply(ctx, config) {
   async function refresh(sessionId, cwd) {
     const fs = ctx.get('fs')
     if (fs === undefined) {
-      states.set(sessionId, { phase: 'unreadable', root: '', taskRef: '', taskStatus: '' })
+      // Still name the session's workspace: an unknown status is more useful
+      // next to the directory it applies to than next to nothing.
+      states.set(sessionId, { phase: 'unreadable', root: cwd, taskRef: '', taskStatus: '' })
       return
     }
 
@@ -204,20 +198,33 @@ export function apply(ctx, config) {
       .finally(() => { reading.delete(sessionId) })
   }
 
-  ctx.effect(() => systemPrompt.context({
-    name: 'trellis:workflow-state',
-    order: contextOrder,
-    text: function (assemble) {
-      const target = targetOf(assemble?.agent)
-      if (target === undefined) return ''
-      ensure(target.sessionId, target.cwd)
-      const state = states.get(target.sessionId)
-      // Not measured yet: contribute nothing rather than a stale or invented
-      // status. The next step renders the real value.
-      if (state === undefined || state.phase === 'absent' || state.phase === 'loading') return ''
-      return buildText(state)
-    },
-  }), 'trellis:workflow-state context')
+  // Register through the injection callback, never straight from apply().
+  //
+  // `systemPrompt.context()` files the contribution into the layer of the
+  // CALLING context's scope (see ScopedLayers.effect), and an agent assembles
+  // its prompt by merging the global layer plus the layers along its own
+  // scope-parent chain. A profile-row plugin's own context is not on that
+  // chain, so registering during apply() stores the contribution where the
+  // agent never looks -- the plugin activates, logs nothing, and injects
+  // nothing. Injecting the service instead hands back a context already
+  // scoped for each agent, which is how dsh's own sandbox/approval policy
+  // contexts reach a prompt.
+  ctx.inject(['systemPrompt'], (scope) => {
+    scope.systemPrompt.context({
+      name: 'trellis:workflow-state',
+      order: contextOrder,
+      text: function (assemble) {
+        const target = targetOf(assemble?.agent)
+        if (target === undefined) return ''
+        ensure(target.sessionId, target.cwd)
+        const state = states.get(target.sessionId)
+        // Not measured yet: contribute nothing rather than a stale or
+        // invented status. The next step renders the real value.
+        if (state === undefined || state.phase === 'absent' || state.phase === 'loading') return ''
+        return buildText(state)
+      },
+    })
+  })
 
   // Session start and each new user message are the only two moments the
   // pointer can have moved; both are event-shaped on this platform.

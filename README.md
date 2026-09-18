@@ -116,6 +116,18 @@ Expect a `# == dsh-plugin-trellis-workflow` layer marker and exactly one `trelli
 
 The row id equals the package name on purpose: the row resolves its module by package name through the profile's `node_modules`, so keeping the two identical makes the composed row and the dependency line correspond at a glance.
 
+The prompt context is registered inside `ctx.inject(['systemPrompt'], scope => …)`
+rather than directly from `apply()`. This is not stylistic. `systemPrompt.context()`
+files the contribution into the layer belonging to the **calling context's**
+scope, and an agent assembles its prompt by merging the global layer plus the
+layers along its own scope-parent chain. A profile-row plugin's own context is
+not on that chain, so registering during `apply()` stores the contribution
+somewhere the agent never reads: the row activates, logs nothing, and injects
+nothing. Injecting the service instead yields a context already scoped per
+agent — the same route dsh's own `sandbox:policy` and `approval:policy`
+contexts take. `test/smoke.js` asserts the injection form so a regression here
+fails without a restart.
+
 ## Status
 
 `0.1.0` — first release. Verified: composition resolves, the module loads, and the behaviour above is exercised by `test/smoke.js` plus the runtime contracts of `systemPrompt.context` and `assemble.agent.session`. Not yet verified on a public registry install; see the repository issues for tracking.

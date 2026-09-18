@@ -1,0 +1,48 @@
+{
+  "name": "dsh-plugin-trellis-workflow",
+  "version": "0.1.0",
+  "description": "Trellis workflow enforcement for the DeepSeek Harness: injects the per-turn workflow state and the trellis-start entry gate that dsh's missing session-start and user-prompt hooks would otherwise provide.",
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "cordis-plugin",
+    "trellis",
+    "workflow"
+  ],
+  "license": "MIT",
+  "author": "elmer <97045340@qq.com>",
+  "homepage": "https://github.com/elmersky/dsh-plugin-trellis-workflow#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/elmersky/dsh-plugin-trellis-workflow.git"
+  },
+  "bugs": {
+    "url": "https://github.com/elmersky/dsh-plugin-trellis-workflow/issues"
+  },
+  "type": "module",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "src",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node test/smoke.js"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.2"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/cordis": {
+      "optional": true
+    }
+  }
+}

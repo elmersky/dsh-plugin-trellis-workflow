@@ -1,0 +1,17 @@
+# dsh-plugin-trellis-workflow bundle patch.
+#
+# Declaring `dsh.bundle.patch` in package.json is what makes this package a
+# profile *bundle* rather than a plain dependency: `dsh plugin --profile <name>
+# add <this package>` installs it and appends it to `dsh.profile.bundles`, and
+# the profile boot merges this patch as one insert. The same flow works for a
+# published version and for a local `file:` / `link:` spec, so the development
+# mount and the distribution mount are the same mechanism.
+#
+# Row id and package name are deliberately equal: the row resolves its module
+# by package name through the profile's node_modules.
+- insert:
+    - id: trellis-workflow
+      name: 'dsh-plugin-trellis-workflow'
+      config:
+        enabled: true
+        contextOrder: 900

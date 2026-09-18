@@ -33,7 +33,9 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       # Trusted Publishing needs npm >= 11.5.1; the bundled CLI may be older.
+      # Current stable is 12.x.
       - run: npm install -g npm@latest
+      - run: npm --version
 
       - run: npm test
 

@@ -68,11 +68,37 @@ async function findProjectRoot(fs, cwd) {
   return undefined
 }
 
-/** Read the session-scoped active-task pointer, or undefined. */
+/**
+ * Read the session-scoped active-task pointer, or undefined.
+ *
+ * Trellis names the file after its own context key, which is
+ * `<platform>_<session id>` (see `_context_key` in the project's
+ * `common/active_task.py`) -- on dsh that is `dsh_session-<uuid>.json`, not
+ * `session-<uuid>.json`. The platform segment is Trellis's business, not this
+ * plugin's, so match any prefix rather than hard-coding one; fall back to the
+ * bare name for projects written by an older Trellis.
+ */
 async function readPointer(fs, root, sessionId) {
-  const path = root + '/.trellis/.runtime/sessions/' + sessionId + '.json'
+  const dir = root + '/.trellis/.runtime/sessions'
+  let entries
   try {
-    const text = await fs.readText(await fs.resolve(path))
+    entries = await fs.listDir(await fs.resolve(dir))
+  } catch {
+    return undefined
+  }
+
+  const exact = sessionId + '.json'
+  const suffixed = '_' + sessionId + '.json'
+  let chosen
+  for (const entry of entries) {
+    if (entry.type !== 'file') continue
+    if (entry.name === exact) { chosen = entry; break }
+    if (entry.name.endsWith(suffixed)) chosen = chosen ?? entry
+  }
+  if (chosen === undefined) return undefined
+
+  try {
+    const text = await fs.readText(chosen.target ?? (await fs.resolve(dir + '/' + chosen.name)))
     return JSON.parse(text)
   } catch {
     return undefined

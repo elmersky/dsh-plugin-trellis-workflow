@@ -144,4 +144,88 @@ function harnessCtx(options = {}) {
   assert.doesNotThrow(() => apply(bare, undefined), 'a service-less context must not throw at mount')
 }
 
+// 7. The pointer lookup must survive Trellis's platform prefix. Trellis names
+// the file after its own context key (`<platform>_<session id>`), so on dsh it
+// is `dsh_session-<uuid>.json` -- not `session-<uuid>.json`. A regression here
+// is invisible until a real restart, which is how it reached a live session.
+// Mirrors the real shape: the dsh session id already starts with `session-`,
+// so Trellis's `<platform>_<id>` key renders as `dsh_session-<uuid>.json`.
+const SID = 'session-39abd896-1548-46aa-bc36-457d61d7af6f'
+for (const pointerName of ['dsh_' + SID + '.json', SID + '.json']) {
+  const files = new Map([
+    ['/proj/.trellis/.runtime/sessions/' + pointerName, JSON.stringify({
+      platform: 'dsh',
+      current_task: '.trellis/tasks/09-18-example',
+    })],
+    ['/proj/.trellis/tasks/09-18-example/task.json', JSON.stringify({ status: 'in_progress' })],
+  ])
+  const dirs = new Set([
+    '/proj/.trellis',
+    '/proj/.trellis/.runtime',
+    '/proj/.trellis/.runtime/sessions',
+    '/proj/.trellis/tasks',
+    '/proj/.trellis/tasks/09-18-example',
+  ])
+  const fakeFs = {
+    async resolve(path) { return { targetKey: path, displayPath: path } },
+    contains: (parent, child) => child.targetKey.startsWith(parent.targetKey),
+    async stat(target) {
+      if (dirs.has(target.targetKey)) return { version: 'v', type: 'directory' }
+      if (files.has(target.targetKey)) return { version: 'v', type: 'file' }
+      return undefined
+    },
+    async listDir(target) {
+      const prefix = target.targetKey.replace(/\/+$/, '') + '/'
+      const out = []
+      for (const key of files.keys()) {
+        if (!key.startsWith(prefix)) continue
+        const rest = key.slice(prefix.length)
+        if (rest.includes('/')) continue
+        out.push({ name: rest, type: 'file', target: { targetKey: key, displayPath: key } })
+      }
+      return out
+    },
+    async readText(target) {
+      const text = files.get(target.targetKey)
+      if (text === undefined) throw new Error('ENOENT ' + target.targetKey)
+      return text
+    },
+  }
+
+  const { ctx, seen } = harnessCtx({ services: { fs: fakeFs } })
+  apply(ctx, {})
+  const render = seen.registeredContexts[0]
+  const assemble = { agent: { id: SID, session: { id: SID, header: { cwd: '/proj' } } } }
+  render.text(assemble)                 // primes the async refresh
+  await new Promise((resolve) => setImmediate(resolve))
+  const rendered = render.text(assemble)
+
+  assert.match(rendered, /status=task_active/, pointerName + ': an active task must be reported')
+  assert.match(rendered, /task=\.trellis\/tasks\/09-18-example/, pointerName + ': the task path must be reported')
+  assert.match(rendered, /task_status=in_progress/, pointerName + ': the task status must be reported')
+}
+
+// 8. A workspace whose ancestor has .trellis/ must not be adopted. The
+// containment check is what keeps unrelated projects clean.
+{
+  const parentDirs = new Set(['/work/.trellis'])
+  const walkFs = {
+    async resolve(path) { return { targetKey: path, displayPath: path } },
+    contains: (parent, child) => child.targetKey.startsWith(parent.targetKey),
+    async stat(target) {
+      if (parentDirs.has(target.targetKey)) return { version: 'v', type: 'directory' }
+      return undefined
+    },
+    async listDir() { return [] },
+    async readText() { throw new Error('ENOENT') },
+  }
+  const { ctx, seen } = harnessCtx({ services: { fs: walkFs } })
+  apply(ctx, {})
+  const render = seen.registeredContexts[0]
+  const assemble = { agent: { id: 's2', session: { id: 's2', header: { cwd: '/work/unrelated' } } } }
+  render.text(assemble)
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(render.text(assemble), '', 'an unrelated workspace must stay untouched')
+}
+
 console.log('smoke: ok')
